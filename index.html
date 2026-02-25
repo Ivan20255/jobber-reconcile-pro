@@ -30,16 +30,19 @@
 
         <!-- Step 3: Employees (hidden until files loaded) -->
         <div id="employeeSection" class="bg-white rounded-lg shadow mb-4 hidden">
-            <div class="p-4 cursor-pointer hover:bg-gray-50 transition" onclick="toggleEmployeeSection()">
+            <div class="p-4 cursor-pointer hover:bg-gray-100 transition select-none" onclick="toggleEmployeeSection()">
                 <div class="flex justify-between items-center">
                     <div class="flex items-center gap-3">
-                        <i id="employeeToggleIcon" class="fas fa-chevron-down text-gray-400 transition-transform"></i>
+                        <i id="employeeToggleIcon" class="fas fa-chevron-down text-gray-400 transition-transform duration-200" style="transform: rotate(-90deg);"></i>
                         <div>
                             <h2 class="font-semibold text-lg">Employees Detected</h2>
                             <p class="text-gray-500 text-sm" id="employeeCount">0 employees</p>
                         </div>
                     </div>
-                    <button onclick="event.stopPropagation(); addNewEmployee()" class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded">+ Add</button>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-400 hidden" id="expandHint">Click to expand</span>
+                        <button onclick="event.stopPropagation(); addNewEmployee()" class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded">+ Add</button>
+                    </div>
                 </div>
             </div>
             <div id="employeeContent" class="px-4 pb-4 hidden">
@@ -89,10 +92,19 @@
         
         // Toggle employee section
         function toggleEmployeeSection() {
+            console.log('Toggle clicked');
             const content = document.getElementById('employeeContent');
             const icon = document.getElementById('employeeToggleIcon');
-            content.classList.toggle('hidden');
-            icon.style.transform = content.classList.contains('hidden') ? 'rotate(-90deg)' : 'rotate(0deg)';
+            const isHidden = content.classList.contains('hidden');
+            
+            if (isHidden) {
+                content.classList.remove('hidden');
+                icon.style.transform = 'rotate(0deg)';
+            } else {
+                content.classList.add('hidden');
+                icon.style.transform = 'rotate(-90deg)';
+            }
+            console.log('Content visible:', !content.classList.contains('hidden'));
         }
 
         // Load Bank CSV
@@ -247,10 +259,16 @@
 
         // Update phone and save to localStorage
         function updatePhone(name, phone) {
+            console.log('Saving phone for', name, ':', phone);
             if (employees[name]) {
                 employees[name].phone = phone;
                 savedPhones[name] = phone;
                 localStorage.setItem('jobberPhones', JSON.stringify(savedPhones));
+                
+                // Visual feedback
+                const input = event.target;
+                input.classList.add('bg-green-50');
+                setTimeout(() => input.classList.remove('bg-green-50'), 500);
             }
         }
 
