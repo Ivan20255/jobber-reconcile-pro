@@ -8,12 +8,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-gray-50 min-h-screen p-4">
+<body class="min-h-screen p-4" style="background-image: url('background.jpg'); background-size: cover; background-position: center; background-attachment: fixed;">
     <div class="max-w-3xl mx-auto">
         <h1 class="text-2xl font-bold text-gray-800 mb-6">Jobber Expense Reconciler</h1>
 
         <!-- Step 1: Bank File -->
-        <div class="bg-white rounded-lg shadow p-6 mb-4">
+        <div class="bg-white/95 backdrop-blur-sm rounded-lg shadow p-6 mb-4">
             <h2 class="font-semibold text-lg mb-2">Step 1: Bank Transactions</h2>
             <p class="text-gray-500 text-sm mb-4">Upload your bank or credit card statement (CSV)</p>
             <input type="file" id="bankFile" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="loadBank(this)">
@@ -21,7 +21,7 @@
         </div>
 
         <!-- Step 2: Jobber File -->
-        <div class="bg-white rounded-lg shadow p-6 mb-4">
+        <div class="bg-white/95 backdrop-blur-sm rounded-lg shadow p-6 mb-4">
             <h2 class="font-semibold text-lg mb-2">Step 2: Jobber Expenses</h2>
             <p class="text-gray-500 text-sm mb-4">Upload your Jobber expense report (CSV)</p>
             <input type="file" id="jobberFile" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" onchange="loadJobber(this)">
@@ -29,7 +29,7 @@
         </div>
 
         <!-- Step 3: Employees (hidden until files loaded) -->
-        <div id="employeeSection" class="bg-white rounded-lg shadow mb-4 hidden">
+        <div id="employeeSection" class="bg-white/95 backdrop-blur-sm rounded-lg shadow mb-4 hidden">
             <div class="p-4 cursor-pointer hover:bg-gray-100 transition select-none" onclick="toggleEmployeeSection()">
                 <div class="flex justify-between items-center">
                     <div class="flex items-center gap-3">
@@ -52,7 +52,7 @@
         </div>
 
         <!-- Match Settings -->
-        <div id="matchSettingsSection" class="bg-white rounded-lg shadow p-4 mb-4 hidden">
+        <div id="matchSettingsSection" class="bg-white/95 backdrop-blur-sm rounded-lg shadow p-4 mb-4 hidden">
             <div class="flex justify-between items-center mb-3 cursor-pointer" onclick="toggleMatchSettings()">
                 <h3 class="font-semibold text-gray-700"><i class="fas fa-sliders-h mr-2"></i>Match Settings</h3>
                 <i id="matchSettingsToggleIcon" class="fas fa-chevron-down text-gray-400 transition-transform"></i>
@@ -112,7 +112,7 @@
 
         <!-- Results -->
         <div id="resultsSection" class="hidden">
-            <div class="bg-white rounded-lg shadow p-6 mb-4">
+            <div class="bg-white/95 backdrop-blur-sm rounded-lg shadow p-6 mb-4">
                 <h2 class="font-semibold text-lg mb-4">Results</h2>
                 <div class="grid grid-cols-4 gap-3 mb-4">
                     <div class="text-center p-2 bg-green-100 rounded-lg">
@@ -136,7 +136,7 @@
             </div>
 
             <!-- Filters -->
-            <div class="bg-white rounded-lg shadow p-4 mb-4">
+            <div class="bg-white/95 backdrop-blur-sm rounded-lg shadow p-4 mb-4">
                 <div class="flex justify-between items-center mb-3 cursor-pointer" onclick="toggleFilters()">
                     <h3 class="font-semibold text-gray-700"><i class="fas fa-filter mr-2"></i>Filters</h3>
                     <i id="filterToggleIcon" class="fas fa-chevron-down text-gray-400 transition-transform"></i>
@@ -745,7 +745,7 @@
                                    '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">✗ Missing</span>';
 
                 return `
-                    <div class="${bgClass} border-l-4 rounded-lg p-3 text-sm">
+                    <div class="${bgClass} bg-opacity-90 backdrop-blur-sm border-l-4 rounded-lg p-3 text-sm">
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2 flex-wrap">
