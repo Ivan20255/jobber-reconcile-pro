@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jobber Reconciler Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 min-h-screen p-4">
+    <div class="max-w-3xl mx-auto">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6">Jobber Expense Reconciler</h1>
+
+        <!-- Step 1: Bank File -->
+        <div class="bg-white rounded-lg shadow p-6 mb-4">
+            <h2 class="font-semibold text-lg mb-2">Step 1: Bank Transactions</h2>
+            <p class="text-gray-500 text-sm mb-4">Upload your bank or credit card statement (CSV)</p>
+            <input type="file" id="bankFile" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="loadBank(this)">
+            <div id="bankStatus" class="mt-2 text-sm"></div>
+        </div>
+
+        <!-- Step 2: Jobber File -->
+        <div class="bg-white rounded-lg shadow p-6 mb-4">
+            <h2 class="font-semibold text-lg mb-2">Step 2: Jobber Expenses</h2>
+            <p class="text-gray-500 text-sm mb-4">Upload your Jobber expense report (CSV)</p>
+            <input type="file" id="jobberFile" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" onchange="loadJobber(this)">
+            <div id="jobberStatus" class="mt-2 text-sm"></div>
+        </div>
+
+        <!-- Step 3: Employees (hidden until files loaded) -->
+        <div id="employeeSection" class="bg-white rounded-lg shadow p-6 mb-4 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="font-semibold text-lg">Employees Detected</h2>
+                <button onclick="addNewEmployee()" class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded">+ Add Employee</button>
+            </div>
+            <p class="text-gray-500 text-sm mb-4">Add phone numbers for SMS receipt requests</p>
+            <div id="employeeList" class="space-y-3"></div>
+        </div>
+
+        <!-- Step 4: Match Button -->
+        <div id="matchSection" class="hidden mb-4">
+            <button onclick="runMatch()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-lg shadow-lg transform transition hover:scale-[1.02]">
+                <i class="fas fa-sync-alt mr-2"></i>Match Transactions
+            </button>
+        </div>
+
+        <!-- Results -->
+        <div id="resultsSection" class="hidden">
+            <div class="bg-white rounded-lg shadow p-6 mb-4">
+                <h2 class="font-semibold text-lg mb-4">Results</h2>
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div class="text-center p-3 bg-green-100 rounded-lg">
+                        <p class="text-2xl font-bold text-green-700" id="countMatched">0</p>
+                        <p class="text-xs text-green-600">Matched</p>
+                    </div>
+                    <div class="text-center p-3 bg-yellow-100 rounded-lg">
+                        <p class="text-2xl font-bold text-yellow-700" id="countPartial">0</p>
+                        <p class="text-xs text-yellow-600">Partial</p>
+                    </div>
+                    <div class="text-center p-3 bg-red-100 rounded-lg">
+                        <p class="text-2xl font-bold text-red-700" id="countMissing">0</p>
+                        <p class="text-xs text-red-600">Missing</p>
+                    </div>
+                </div>
+            </div>
+            <div id="transactionsList" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <script>
+        // Data
+        let bankTxns = [];
+        let jobberExps = [];
+        let employees = {}; // name -> {name, phone, transactions: []}
+
+        // Load Bank CSV
+        function loadBank(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const status = document.getElementById('bankStatus');
+            status.innerHTML = '<span class="text-blue-600">Reading...</span>';
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    bankTxns = results.data
+                        .filter(row => row.Amount && parseFloat(row.Amount) !== 0)
+                        .map(row => ({
+                            date: row.Date || '',
+                            merchant: row.Merchant || row.Description || '',
+                            amount: Math.abs(parseFloat(row.Amount)),
+                            cardholder: row['Name on card'] || row.Cardholder || '',
+                            raw: row
+                        }));
+
+                    status.innerHTML = `<span class="text-green-600">✓ ${bankTxns.length} transactions loaded</span>`;
+                    extractEmployees();
+                    checkReady();
+                },
+                error: function(err) {
+                    status.innerHTML = `<span class="text-red-600">Error: ${err.message}</span>`;
+                }
+            });
+        }
+
+        // Load Jobber CSV
+        function loadJobber(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const status = document.getElementById('jobberStatus');
+            status.innerHTML = '<span class="text-blue-600">Reading...</span>';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                let text = e.target.result;
+                const lines = text.split('\n');
+                
+                // Find header row
+                let headerIdx = 0;
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].includes('Item name')) {
+                        headerIdx = i;
+                        break;
+                    }
+                }
+
+                // Parse from header
+                const cleanText = lines.slice(headerIdx).join('\n');
+                
+                Papa.parse(cleanText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        jobberExps = results.data
+                            .filter(row => row['Total $'])
+                            .map(row => {
+                                const amtStr = String(row['Total $']).replace(/,/g, '').replace(/"/g, '');
+                                return {
+                                    item: row['Item name'] || '',
+                                    amount: parseFloat(amtStr) || 0,
+                                    employee: row['Entered by'] || '',
+                                    job: row['Job #'] || '',
+                                    date: row.Date || '',
+                                    raw: row
+                                };
+                            })
+                            .filter(x => x.amount > 0);
+
+                        status.innerHTML = `<span class="text-green-600">✓ ${jobberExps.length} expenses loaded</span>`;
+                        extractEmployees();
+                        checkReady();
+                    },
+                    error: function(err) {
+                        status.innerHTML = `<span class="text-red-600">Error: ${err.message}</span>`;
+                    }
+                });
+            };
+            reader.readAsText(file);
+        }
+
+        // Extract unique employees from both files
+        function extractEmployees() {
+            // From Jobber - use "Entered by" field
+            jobberExps.forEach(exp => {
+                if (exp.employee && exp.employee !== 'N/A') {
+                    const name = exp.employee.trim();
+                    if (!employees[name]) {
+                        employees[name] = { name, phone: '', sources: ['jobber'] };
+                    }
+                }
+            });
+
+            // From Bank - use "Name on card" field
+            bankTxns.forEach(tx => {
+                if (tx.cardholder) {
+                    const name = tx.cardholder.trim();
+                    if (!employees[name]) {
+                        employees[name] = { name, phone: '', sources: ['bank'] };
+                    } else if (!employees[name].sources.includes('bank')) {
+                        employees[name].sources.push('bank');
+                    }
+                }
+            });
+
+            renderEmployees();
+        }
+
+        // Render employee list
+        function renderEmployees() {
+            const empList = Object.values(employees);
+            if (empList.length === 0) return;
+
+            document.getElementById('employeeSection').classList.remove('hidden');
+            const container = document.getElementById('employeeList');
+            
+            container.innerHTML = empList.map((emp, idx) => `
+                <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div class="flex-1">
+                        <p class="font-medium">${emp.name}</p>
+                        <p class="text-xs text-gray-500">Found in: ${emp.sources.join(', ')}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-phone text-gray-400"></i>
+                        <input type="tel" 
+                            value="${emp.phone}" 
+                            placeholder="Phone number"
+                            onchange="updatePhone('${emp.name}', this.value)"
+                            class="w-40 px-3 py-2 border rounded text-sm focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Update phone number
+        function updatePhone(name, phone) {
+            if (employees[name]) {
+                employees[name].phone = phone;
+            }
+        }
+
+        // Add new employee manually
+        function addNewEmployee() {
+            const name = prompt('Enter employee name:');
+            if (name && name.trim()) {
+                employees[name.trim()] = { 
+                    name: name.trim(), 
+                    phone: '', 
+                    sources: ['manual'] 
+                };
+                renderEmployees();
+            }
+        }
+
+        // Check if ready to match
+        function checkReady() {
+            if (bankTxns.length > 0 && jobberExps.length > 0) {
+                document.getElementById('matchSection').classList.remove('hidden');
+            }
+        }
+
+        // Run matching
+        function runMatch() {
+            console.log('Matching', bankTxns.length, 'bank txns to', jobberExps.length, 'jobber expenses');
+            
+            const results = [];
+            const matchedJobber = new Set();
+
+            // For each bank transaction, find best match
+            for (const bank of bankTxns) {
+                let bestMatch = null;
+                let bestScore = 0;
+                let bestIdx = -1;
+
+                for (let i = 0; i < jobberExps.length; i++) {
+                    if (matchedJobber.has(i)) continue;
+
+                    const jobber = jobberExps[i];
+                    const diff = Math.abs(bank.amount - jobber.amount);
+
+                    let score = 0;
+                    if (diff < 0.01) score = 100;
+                    else if (diff < 1) score = 80;
+                    else if (diff < 5) score = 60;
+
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMatch = jobber;
+                        bestIdx = i;
+                    }
+                }
+
+                if (bestMatch && bestScore >= 80) {
+                    matchedJobber.add(bestIdx);
+                }
+
+                results.push({
+                    bank: bank,
+                    match: bestMatch,
+                    score: bestScore,
+                    status: bestScore >= 100 ? 'exact' : bestScore >= 80 ? 'partial' : 'none'
+                });
+            }
+
+            displayResults(results);
+        }
+
+        // Display results
+        function displayResults(results) {
+            const matched = results.filter(r => r.status === 'exact').length;
+            const partial = results.filter(r => r.status === 'partial').length;
+            const missing = results.filter(r => r.status === 'none').length;
+
+            document.getElementById('countMatched').textContent = matched;
+            document.getElementById('countPartial').textContent = partial;
+            document.getElementById('countMissing').textContent = missing;
+
+            const container = document.getElementById('transactionsList');
+            container.innerHTML = results.map(r => {
+                const isMatched = r.status === 'exact';
+                const isPartial = r.status === 'partial';
+                const bgClass = isMatched ? 'bg-green-50 border-l-4 border-green-500' : 
+                               isPartial ? 'bg-yellow-50 border-l-4 border-yellow-500' : 
+                               'bg-red-50 border-l-4 border-red-500';
+                
+                const icon = isMatched ? '✓' : isPartial ? '~' : '✗';
+                const label = isMatched ? 'Matched' : isPartial ? 'Close' : 'Missing';
+
+                // Find employee for SMS
+                let emp = null;
+                if (r.bank.cardholder && employees[r.bank.cardholder]) {
+                    emp = employees[r.bank.cardholder];
+                }
+
+                let smsButton = '';
+                if (!isMatched && emp && emp.phone) {
+                    const msg = `Hi ${emp.name.split(' ')[0]}, I need a receipt for this company card transaction:\n\nMerchant: ${r.bank.merchant}\nAmount: $${r.bank.amount.toFixed(2)}\nDate: ${r.bank.date || 'N/A'}\n\nPlease submit through Jobber or reply with a photo of the receipt.\n\nThanks!`;
+                    smsButton = `<a href="sms:${emp.phone}?body=${encodeURIComponent(msg)}" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"><i class="fas fa-comment-dots"></i> SMS</a>`;
+                } else if (!isMatched) {
+                    smsButton = `<span class="text-gray-400 text-sm">No phone</span>`;
+                }
+
+                return `
+                    <div class="${bgClass} p-4 rounded-lg">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold">${icon} ${r.bank.merchant || 'Unknown'}</span>
+                                    <span class="text-sm text-gray-500">$${r.bank.amount.toFixed(2)}</span>
+                                </div>
+                                <div class="text-sm text-gray-600 mt-1">
+                                    ${label}
+                                    ${r.match ? `→ ${r.match.item} ($${r.match.amount.toFixed(2)})` : ''}
+                                </div>
+                                ${r.bank.cardholder ? `<div class="text-xs text-gray-400 mt-1">Card: ${r.bank.cardholder}</div>` : ''}
+                            </div>
+                            ${smsButton}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('resultsSection').classList.remove('hidden');
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
