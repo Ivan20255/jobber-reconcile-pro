@@ -9,8 +9,57 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="min-h-screen p-4" style="background-image: url('background.jpg'); background-size: cover; background-position: center; background-attachment: fixed;">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Auth Modal -->
+    <div id="authModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 text-center">Welcome</h2>
+            <p class="text-gray-600 text-sm mb-6 text-center">Sign in to save your data and access it from anywhere</p>
+            
+            <!-- Google Sign In -->
+            <button onclick="signInWithGoogle()" class="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 rounded-lg py-3 px-4 hover:bg-gray-50 transition mb-3">
+                <img src="https://www.google.com/favicon.ico" class="w-5 h-5" alt="Google">
+                <span class="text-gray-700 font-medium">Continue with Google</span>
+            </button>
+            
+            <div class="relative my-4">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-gray-300"></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                    <span class="px-2 bg-white text-gray-500">or</span>
+                </div>
+            </div>
+            
+            <!-- Phone Sign In -->
+            <div id="phoneSignInForm">
+                <div class="flex gap-2 mb-3">
+                    <input type="tel" id="phoneNumber" placeholder="+1 (555) 123-4567" class="flex-1 border rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500">
+                    <button onclick="sendPhoneCode()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Send Code</button>
+                </div>
+                <div id="phoneCodeSection" class="hidden">
+                    <input type="text" id="phoneCode" placeholder="Enter 6-digit code" class="w-full border rounded-lg px-4 py-3 text-sm mb-3 focus:ring-2 focus:ring-blue-500">
+                    <button onclick="verifyPhoneCode()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700">Verify</button>
+                </div>
+            </div>
+            
+            <p class="text-xs text-gray-500 text-center mt-4">Your data is securely stored and private</p>
+        </div>
+    </div>
+    
+    <!-- User Header -->
     <div class="max-w-3xl mx-auto">
-        <h1 class="text-2xl font-bold text-gray-800 mb-6">Jobber Expense Reconciler</h1>
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">Jobber Expense Reconciler</h1>
+            <div id="userSection" class="hidden flex items-center gap-3">
+                <span id="userName" class="text-sm text-gray-600"></span>
+                <button onclick="signOut()" class="text-sm text-red-600 hover:text-red-700">Sign Out</button>
+            </div>
+        </div>
 
         <!-- Step 1: Bank File -->
         <div class="bg-white/95 backdrop-blur-sm rounded-lg shadow p-6 mb-4">
@@ -199,6 +248,151 @@
     </div>
 
     <script>
+        // Firebase Config - REPLACE WITH YOUR OWN CONFIG
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            projectId: "YOUR_PROJECT",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        
+        // Auth state listener
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                // User is signed in
+                document.getElementById('authModal').classList.add('hidden');
+                document.getElementById('userSection').classList.remove('hidden');
+                document.getElementById('userName').textContent = user.displayName || user.phoneNumber || 'User';
+                
+                // Load user's saved data
+                await loadUserData(user.uid);
+            } else {
+                // User is signed out
+                document.getElementById('authModal').classList.remove('hidden');
+                document.getElementById('userSection').classList.add('hidden');
+            }
+        });
+        
+        // Sign in with Google
+        function signInWithGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider).catch((error) => {
+                console.error('Google sign in error:', error);
+                alert('Sign in failed: ' + error.message);
+            });
+        }
+        
+        // Phone auth - send code
+        let confirmationResult = null;
+        function sendPhoneCode() {
+            const phoneNumber = document.getElementById('phoneNumber').value;
+            if (!phoneNumber) {
+                alert('Please enter a phone number');
+                return;
+            }
+            
+            const appVerifier = new firebase.auth.RecaptchaVerifier('phoneSignInForm', {
+                size: 'invisible'
+            });
+            
+            auth.signInWithPhoneNumber(phoneNumber, appVerifier)
+                .then((result) => {
+                    confirmationResult = result;
+                    document.getElementById('phoneCodeSection').classList.remove('hidden');
+                    alert('Code sent! Check your phone.');
+                })
+                .catch((error) => {
+                    console.error('Phone auth error:', error);
+                    alert('Failed to send code: ' + error.message);
+                });
+        }
+        
+        // Verify phone code
+        function verifyPhoneCode() {
+            const code = document.getElementById('phoneCode').value;
+            if (!code || !confirmationResult) {
+                alert('Please enter the code');
+                return;
+            }
+            
+            confirmationResult.confirm(code)
+                .then((result) => {
+                    // Signed in
+                    console.log('Phone sign in successful');
+                })
+                .catch((error) => {
+                    console.error('Code verification error:', error);
+                    alert('Invalid code: ' + error.message);
+                });
+        }
+        
+        // Sign out
+        function signOut() {
+            auth.signOut().then(() => {
+                // Clear local data
+                bankTxns = [];
+                jobberExps = [];
+                employees = {};
+                matchResults = [];
+                location.reload();
+            });
+        }
+        
+        // Save user data to Firestore
+        async function saveUserData() {
+            const user = auth.currentUser;
+            if (!user) return;
+            
+            try {
+                await db.collection('users').doc(user.uid).set({
+                    employees: employees,
+                    matchSettings: matchSettings,
+                    currentFilters: currentFilters,
+                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                console.log('Data saved to cloud');
+            } catch (error) {
+                console.error('Save error:', error);
+            }
+        }
+        
+        // Load user data from Firestore
+        async function loadUserData(userId) {
+            try {
+                const doc = await db.collection('users').doc(userId).get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data.employees) {
+                        employees = data.employees;
+                        // Also update localStorage backup
+                        localStorage.setItem('jobberPhones', JSON.stringify(
+                            Object.fromEntries(Object.entries(employees).map(([k, v]) => [k, v.phone]))
+                        ));
+                    }
+                    if (data.matchSettings) {
+                        matchSettings = data.matchSettings;
+                        // Update UI to reflect loaded settings
+                        document.getElementById('amountTolerance').value = matchSettings.amountTolerance;
+                        document.getElementById('dateRange').value = matchSettings.dateRange;
+                        updateToleranceDisplay(matchSettings.amountTolerance);
+                        updateDateRangeDisplay(matchSettings.dateRange);
+                    }
+                    console.log('User data loaded from cloud');
+                }
+            } catch (error) {
+                console.error('Load error:', error);
+                // Fall back to localStorage
+                const savedPhones = JSON.parse(localStorage.getItem('jobberPhones') || '{}');
+            }
+        }
+
         // Data
         let bankTxns = [];
         let jobberExps = [];
@@ -214,7 +408,7 @@
             dateTo: ''
         };
         
-        // Load saved phone numbers from localStorage
+        // Load saved phone numbers from localStorage (fallback)
         const savedPhones = JSON.parse(localStorage.getItem('jobberPhones') || '{}');
         
         // Toggle filters section
@@ -334,6 +528,7 @@
         function updateToleranceDisplay(value) {
             document.getElementById('toleranceDisplay').textContent = '$' + parseFloat(value).toFixed(2);
             matchSettings.amountTolerance = parseFloat(value);
+            saveUserData();
         }
         
         // Update date range display
@@ -342,6 +537,7 @@
             let text = days === 0 ? 'Same day' : days === 1 ? '1 day' : days + ' days';
             document.getElementById('dateRangeDisplay').textContent = text;
             matchSettings.dateRange = days;
+            saveUserData();
         }
         
         // Set strictness
@@ -384,6 +580,8 @@
                 updateToleranceDisplay(5);
                 updateDateRangeDisplay(7);
             }
+            
+            saveUserData();
         }
 
         // Toggle employee section
@@ -553,13 +751,16 @@
             `).join('');
         }
 
-        // Update phone and save to localStorage
+        // Update phone and save
         function updatePhone(name, phone) {
             console.log('Saving phone for', name, ':', phone);
             if (employees[name]) {
                 employees[name].phone = phone;
                 savedPhones[name] = phone;
                 localStorage.setItem('jobberPhones', JSON.stringify(savedPhones));
+                
+                // Save to cloud
+                saveUserData();
                 
                 // Visual feedback
                 const input = event.target;
@@ -578,6 +779,7 @@
                     sources: ['manual'] 
                 };
                 renderEmployees();
+                saveUserData();
             }
         }
 
