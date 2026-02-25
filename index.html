@@ -77,6 +77,65 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Filters -->
+            <div class="bg-white rounded-lg shadow p-4 mb-4">
+                <div class="flex justify-between items-center mb-3 cursor-pointer" onclick="toggleFilters()">
+                    <h3 class="font-semibold text-gray-700"><i class="fas fa-filter mr-2"></i>Filters</h3>
+                    <i id="filterToggleIcon" class="fas fa-chevron-down text-gray-400 transition-transform"></i>
+                </div>
+                <div id="filterContent" class="hidden space-y-3">
+                    <!-- Match Status Filter -->
+                    <div>
+                        <label class="text-sm font-medium text-gray-600">Match Status</label>
+                        <div class="flex gap-2 mt-1 flex-wrap">
+                            <button onclick="setFilter('status', 'all')" class="filter-btn px-3 py-1 rounded-full text-sm bg-blue-500 text-white" data-filter="status" data-value="all">All</button>
+                            <button onclick="setFilter('status', 'exact')" class="filter-btn px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="status" data-value="exact">✓ Exact</button>
+                            <button onclick="setFilter('status', 'partial')" class="filter-btn px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="status" data-value="partial">~ Close</button>
+                            <button onclick="setFilter('status', 'none')" class="filter-btn px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="status" data-value="none">✗ Missing</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Employee Filter -->
+                    <div>
+                        <label class="text-sm font-medium text-gray-600">Employee</label>
+                        <select id="filterEmployee" onchange="setFilter('employee', this.value)" class="w-full mt-1 p-2 border rounded text-sm">
+                            <option value="all">All Employees</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Job Filter -->
+                    <div>
+                        <label class="text-sm font-medium text-gray-600">Job #</label>
+                        <select id="filterJob" onchange="setFilter('job', this.value)" class="w-full mt-1 p-2 border rounded text-sm">
+                            <option value="all">All Jobs</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Amount Range -->
+                    <div>
+                        <label class="text-sm font-medium text-gray-600">Amount Range</label>
+                        <div class="flex gap-2 mt-1">
+                            <input type="number" id="filterMinAmount" placeholder="Min $" class="w-1/2 p-2 border rounded text-sm" onchange="setFilter('amountMin', this.value)">
+                            <input type="number" id="filterMaxAmount" placeholder="Max $" class="w-1/2 p-2 border rounded text-sm" onchange="setFilter('amountMax', this.value)">
+                        </div>
+                    </div>
+                    
+                    <!-- Date Range -->
+                    <div>
+                        <label class="text-sm font-medium text-gray-600">Date Range</label>
+                        <div class="flex gap-2 mt-1">
+                            <input type="date" id="filterDateFrom" class="w-1/2 p-2 border rounded text-sm" onchange="setFilter('dateFrom', this.value)">
+                            <input type="date" id="filterDateTo" class="w-1/2 p-2 border rounded text-sm" onchange="setFilter('dateTo', this.value)">
+                        </div>
+                    </div>
+                    
+                    <button onclick="clearFilters()" class="w-full py-2 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-700">
+                        <i class="fas fa-times mr-1"></i>Clear All Filters
+                    </button>
+                </div>
+            </div>
+            
             <div id="transactionsList" class="space-y-3"></div>
         </div>
     </div>
@@ -86,9 +145,115 @@
         let bankTxns = [];
         let jobberExps = [];
         let employees = {}; // name -> {name, phone, sources: []}
+        let matchResults = []; // Store all match results
+        let currentFilters = {
+            status: 'all',
+            employee: 'all',
+            job: 'all',
+            amountMin: '',
+            amountMax: '',
+            dateFrom: '',
+            dateTo: ''
+        };
         
         // Load saved phone numbers from localStorage
         const savedPhones = JSON.parse(localStorage.getItem('jobberPhones') || '{}');
+        
+        // Toggle filters section
+        function toggleFilters() {
+            const content = document.getElementById('filterContent');
+            const icon = document.getElementById('filterToggleIcon');
+            content.classList.toggle('hidden');
+            icon.style.transform = content.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+        }
+        
+        // Set filter value
+        function setFilter(type, value) {
+            currentFilters[type] = value;
+            
+            // Update button styles for status filter
+            if (type === 'status') {
+                document.querySelectorAll('[data-filter="status"]').forEach(btn => {
+                    if (btn.dataset.value === value) {
+                        btn.classList.remove('bg-gray-200', 'text-gray-700');
+                        btn.classList.add('bg-blue-500', 'text-white');
+                    } else {
+                        btn.classList.remove('bg-blue-500', 'text-white');
+                        btn.classList.add('bg-gray-200', 'text-gray-700');
+                    }
+                });
+            }
+            
+            applyFilters();
+        }
+        
+        // Apply filters and re-render
+        function applyFilters() {
+            if (!matchResults.length) return;
+            
+            const filtered = matchResults.filter(r => {
+                // Status filter
+                if (currentFilters.status !== 'all' && r.status !== currentFilters.status) {
+                    return false;
+                }
+                
+                // Employee filter
+                if (currentFilters.employee !== 'all') {
+                    const emp = r.bank.cardholder;
+                    if (emp !== currentFilters.employee) return false;
+                }
+                
+                // Job filter
+                if (currentFilters.job !== 'all') {
+                    if (!r.match || r.match.job !== currentFilters.job) return false;
+                }
+                
+                // Amount range
+                const amt = r.bank.amount;
+                if (currentFilters.amountMin && amt < parseFloat(currentFilters.amountMin)) return false;
+                if (currentFilters.amountMax && amt > parseFloat(currentFilters.amountMax)) return false;
+                
+                // Date range (basic string comparison for now)
+                if (currentFilters.dateFrom && r.bank.date && r.bank.date < currentFilters.dateFrom) return false;
+                if (currentFilters.dateTo && r.bank.date && r.bank.date > currentFilters.dateTo) return false;
+                
+                return true;
+            });
+            
+            renderFilteredResults(filtered);
+            
+            // Update counts
+            const matched = filtered.filter(r => r.status === 'exact').length;
+            const partial = filtered.filter(r => r.status === 'partial').length;
+            const missing = filtered.filter(r => r.status === 'none').length;
+            document.getElementById('countMatched').textContent = matched;
+            document.getElementById('countPartial').textContent = partial;
+            document.getElementById('countMissing').textContent = missing;
+        }
+        
+        // Clear all filters
+        function clearFilters() {
+            currentFilters = {
+                status: 'all',
+                employee: 'all',
+                job: 'all',
+                amountMin: '',
+                amountMax: '',
+                dateFrom: '',
+                dateTo: ''
+            };
+            
+            // Reset UI
+            document.getElementById('filterEmployee').value = 'all';
+            document.getElementById('filterJob').value = 'all';
+            document.getElementById('filterMinAmount').value = '';
+            document.getElementById('filterMaxAmount').value = '';
+            document.getElementById('filterDateFrom').value = '';
+            document.getElementById('filterDateTo').value = '';
+            
+            setFilter('status', 'all');
+            applyFilters();
+        }
         
         // Toggle employee section
         function toggleEmployeeSection() {
@@ -335,7 +500,24 @@
                 });
             }
 
+            matchResults = results;
+            populateFilterOptions();
             displayResults(results);
+        }
+        
+        // Populate filter dropdowns
+        function populateFilterOptions() {
+            // Get unique employees from bank transactions
+            const uniqueEmployees = [...new Set(bankTxns.map(t => t.cardholder).filter(Boolean))].sort();
+            const empSelect = document.getElementById('filterEmployee');
+            empSelect.innerHTML = '<option value="all">All Employees</option>' + 
+                uniqueEmployees.map(e => `<option value="${e}">${e}</option>`).join('');
+            
+            // Get unique jobs from jobber expenses
+            const uniqueJobs = [...new Set(jobberExps.map(j => j.job).filter(Boolean))].sort();
+            const jobSelect = document.getElementById('filterJob');
+            jobSelect.innerHTML = '<option value="all">All Jobs</option>' + 
+                uniqueJobs.map(j => `<option value="${j}">${j}</option>`).join('');
         }
 
         // Display results
@@ -348,6 +530,14 @@
             document.getElementById('countPartial').textContent = partial;
             document.getElementById('countMissing').textContent = missing;
 
+            renderFilteredResults(results);
+            
+            document.getElementById('resultsSection').classList.remove('hidden');
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Render filtered results
+        function renderFilteredResults(results) {
             const container = document.getElementById('transactionsList');
             container.innerHTML = results.map(r => {
                 const isMatched = r.status === 'exact';
@@ -398,9 +588,6 @@
                     </div>
                 `;
             }).join('');
-
-            document.getElementById('resultsSection').classList.remove('hidden');
-            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
         }
     </script>
 </body>
