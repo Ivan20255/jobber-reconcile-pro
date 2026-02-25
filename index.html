@@ -51,6 +51,58 @@
             </div>
         </div>
 
+        <!-- Match Settings -->
+        <div id="matchSettingsSection" class="bg-white rounded-lg shadow p-4 mb-4 hidden">
+            <div class="flex justify-between items-center mb-3 cursor-pointer" onclick="toggleMatchSettings()">
+                <h3 class="font-semibold text-gray-700"><i class="fas fa-sliders-h mr-2"></i>Match Settings</h3>
+                <i id="matchSettingsToggleIcon" class="fas fa-chevron-down text-gray-400 transition-transform"></i>
+            </div>
+            <div id="matchSettingsContent" class="hidden space-y-4">
+                <!-- Amount Tolerance Slider -->
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-medium text-gray-600">Amount Tolerance</label>
+                        <span class="text-sm font-bold text-blue-600" id="toleranceDisplay">$0.01</span>
+                    </div>
+                    <input type="range" id="amountTolerance" min="0" max="5" step="0.01" value="0.01" 
+                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        oninput="updateToleranceDisplay(this.value)">
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>Exact ($0)</span>
+                        <span>$5.00</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Match amounts within this difference</p>
+                </div>
+                
+                <!-- Date Range Slider -->
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-medium text-gray-600">Date Range</label>
+                        <span class="text-sm font-bold text-blue-600" id="dateRangeDisplay">Same day</span>
+                    </div>
+                    <input type="range" id="dateRange" min="0" max="30" step="1" value="0" 
+                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        oninput="updateDateRangeDisplay(this.value)">
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>Same day</span>
+                        <span>30 days</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Match transactions within this many days</p>
+                </div>
+                
+                <!-- Match Strictness -->
+                <div>
+                    <label class="text-sm font-medium text-gray-600">Match Strictness</label>
+                    <div class="flex gap-2 mt-1">
+                        <button onclick="setStrictness('strict')" class="strictness-btn flex-1 py-2 rounded text-sm bg-blue-500 text-white" data-strictness="strict">Strict</button>
+                        <button onclick="setStrictness('normal')" class="strictness-btn flex-1 py-2 rounded text-sm bg-gray-200 text-gray-700" data-strictness="normal">Normal</button>
+                        <button onclick="setStrictness('loose')" class="strictness-btn flex-1 py-2 rounded text-sm bg-gray-200 text-gray-700" data-strictness="loose">Loose</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1" id="strictnessDesc">Exact amounts only</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Step 4: Match Button -->
         <div id="matchSection" class="hidden mb-4">
             <button onclick="runMatch()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-lg shadow-lg transform transition hover:scale-[1.02]">
@@ -62,20 +114,25 @@
         <div id="resultsSection" class="hidden">
             <div class="bg-white rounded-lg shadow p-6 mb-4">
                 <h2 class="font-semibold text-lg mb-4">Results</h2>
-                <div class="grid grid-cols-3 gap-4 mb-4">
-                    <div class="text-center p-3 bg-green-100 rounded-lg">
-                        <p class="text-2xl font-bold text-green-700" id="countMatched">0</p>
-                        <p class="text-xs text-green-600">Matched</p>
+                <div class="grid grid-cols-4 gap-3 mb-4">
+                    <div class="text-center p-2 bg-green-100 rounded-lg">
+                        <p class="text-xl font-bold text-green-700" id="countMatched">0</p>
+                        <p class="text-xs text-green-600">Exact</p>
                     </div>
-                    <div class="text-center p-3 bg-yellow-100 rounded-lg">
-                        <p class="text-2xl font-bold text-yellow-700" id="countPartial">0</p>
-                        <p class="text-xs text-yellow-600">Partial</p>
+                    <div class="text-center p-2 bg-blue-100 rounded-lg">
+                        <p class="text-xl font-bold text-blue-700" id="countPartial">0</p>
+                        <p class="text-xs text-blue-600">Partial</p>
                     </div>
-                    <div class="text-center p-3 bg-red-100 rounded-lg">
-                        <p class="text-2xl font-bold text-red-700" id="countMissing">0</p>
+                    <div class="text-center p-2 bg-orange-100 rounded-lg">
+                        <p class="text-xl font-bold text-orange-700" id="countFuzzy">0</p>
+                        <p class="text-xs text-orange-600">Fuzzy</p>
+                    </div>
+                    <div class="text-center p-2 bg-red-100 rounded-lg">
+                        <p class="text-xl font-bold text-red-700" id="countMissing">0</p>
                         <p class="text-xs text-red-600">Missing</p>
                     </div>
                 </div>
+                <p class="text-xs text-gray-500 text-center">Using: ±$<span id="settingsTolerance">0.01</span>, <span id="settingsDateRange">same day</span></p>
             </div>
 
             <!-- Filters -->
@@ -91,7 +148,8 @@
                         <div class="flex gap-2 mt-1 flex-wrap">
                             <button onclick="setFilter('status', 'all')" class="filter-btn px-3 py-1 rounded-full text-sm bg-blue-500 text-white" data-filter="status" data-value="all">All</button>
                             <button onclick="setFilter('status', 'exact')" class="filter-btn px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="status" data-value="exact">✓ Exact</button>
-                            <button onclick="setFilter('status', 'partial')" class="filter-btn px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="status" data-value="partial">~ Close</button>
+                            <button onclick="setFilter('status', 'partial')" class="filter-btn px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="status" data-value="partial">~ Partial</button>
+                            <button onclick="setFilter('status', 'fuzzy')" class="filter-btn px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="status" data-value="fuzzy">≈ Fuzzy</button>
                             <button onclick="setFilter('status', 'none')" class="filter-btn px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="status" data-value="none">✗ Missing</button>
                         </div>
                     </div>
@@ -225,9 +283,11 @@
             // Update counts
             const matched = filtered.filter(r => r.status === 'exact').length;
             const partial = filtered.filter(r => r.status === 'partial').length;
+            const fuzzy = filtered.filter(r => r.status === 'fuzzy').length;
             const missing = filtered.filter(r => r.status === 'none').length;
             document.getElementById('countMatched').textContent = matched;
             document.getElementById('countPartial').textContent = partial;
+            document.getElementById('countFuzzy').textContent = fuzzy;
             document.getElementById('countMissing').textContent = missing;
         }
         
@@ -255,6 +315,77 @@
             applyFilters();
         }
         
+        // Match settings
+        let matchSettings = {
+            amountTolerance: 0.01,
+            dateRange: 0,
+            strictness: 'strict'
+        };
+        
+        // Toggle match settings
+        function toggleMatchSettings() {
+            const content = document.getElementById('matchSettingsContent');
+            const icon = document.getElementById('matchSettingsToggleIcon');
+            content.classList.toggle('hidden');
+            icon.style.transform = content.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+        }
+        
+        // Update tolerance display
+        function updateToleranceDisplay(value) {
+            document.getElementById('toleranceDisplay').textContent = '$' + parseFloat(value).toFixed(2);
+            matchSettings.amountTolerance = parseFloat(value);
+        }
+        
+        // Update date range display
+        function updateDateRangeDisplay(value) {
+            const days = parseInt(value);
+            let text = days === 0 ? 'Same day' : days === 1 ? '1 day' : days + ' days';
+            document.getElementById('dateRangeDisplay').textContent = text;
+            matchSettings.dateRange = days;
+        }
+        
+        // Set strictness
+        function setStrictness(level) {
+            matchSettings.strictness = level;
+            
+            // Update button styles
+            document.querySelectorAll('.strictness-btn').forEach(btn => {
+                if (btn.dataset.strictness === level) {
+                    btn.classList.remove('bg-gray-200', 'text-gray-700');
+                    btn.classList.add('bg-blue-500', 'text-white');
+                } else {
+                    btn.classList.remove('bg-blue-500', 'text-white');
+                    btn.classList.add('bg-gray-200', 'text-gray-700');
+                }
+            });
+            
+            // Update description
+            const descs = {
+                strict: 'Exact amounts only (within tolerance)',
+                normal: 'Amount + date proximity',
+                loose: 'Fuzzy matching on amount and date'
+            };
+            document.getElementById('strictnessDesc').textContent = descs[level];
+            
+            // Auto-adjust sliders based on strictness
+            if (level === 'strict') {
+                document.getElementById('amountTolerance').value = 0.01;
+                document.getElementById('dateRange').value = 0;
+                updateToleranceDisplay(0.01);
+                updateDateRangeDisplay(0);
+            } else if (level === 'normal') {
+                document.getElementById('amountTolerance').value = 1;
+                document.getElementById('dateRange').value = 3;
+                updateToleranceDisplay(1);
+                updateDateRangeDisplay(3);
+            } else if (level === 'loose') {
+                document.getElementById('amountTolerance').value = 5;
+                document.getElementById('dateRange').value = 7;
+                updateToleranceDisplay(5);
+                updateDateRangeDisplay(7);
+            }
+        }
+
         // Toggle employee section
         function toggleEmployeeSection() {
             console.log('Toggle clicked');
@@ -454,32 +585,68 @@
         function checkReady() {
             if (bankTxns.length > 0 && jobberExps.length > 0) {
                 document.getElementById('matchSection').classList.remove('hidden');
+                document.getElementById('matchSettingsSection').classList.remove('hidden');
             }
+        }
+
+        // Parse date helper
+        function parseDate(dateStr) {
+            if (!dateStr) return null;
+            // Try to parse various date formats
+            const parsed = new Date(dateStr);
+            return isNaN(parsed.getTime()) ? null : parsed;
+        }
+        
+        // Calculate days difference between two dates
+        function daysDiff(date1, date2) {
+            if (!date1 || !date2) return Infinity;
+            const oneDay = 24 * 60 * 60 * 1000;
+            return Math.abs((date1 - date2) / oneDay);
         }
 
         // Run matching
         function runMatch() {
-            console.log('Matching', bankTxns.length, 'bank txns to', jobberExps.length, 'jobber expenses');
+            console.log('Matching with settings:', matchSettings);
+            console.log('Bank txns:', bankTxns.length, 'Jobber expenses:', jobberExps.length);
             
             const results = [];
             const matchedJobber = new Set();
+            
+            const tolerance = matchSettings.amountTolerance;
+            const maxDateDiff = matchSettings.dateRange;
 
             // For each bank transaction, find best match
             for (const bank of bankTxns) {
                 let bestMatch = null;
                 let bestScore = 0;
                 let bestIdx = -1;
+                const bankDate = parseDate(bank.date);
 
                 for (let i = 0; i < jobberExps.length; i++) {
                     if (matchedJobber.has(i)) continue;
 
                     const jobber = jobberExps[i];
-                    const diff = Math.abs(bank.amount - jobber.amount);
-
+                    const amountDiff = Math.abs(bank.amount - jobber.amount);
+                    const jobberDate = parseDate(jobber.date);
+                    const dateDiff = daysDiff(bankDate, jobberDate);
+                    
                     let score = 0;
-                    if (diff < 0.01) score = 100;
-                    else if (diff < 1) score = 80;
-                    else if (diff < 5) score = 60;
+                    
+                    // Calculate score based on amount difference
+                    if (amountDiff <= tolerance) {
+                        score = 100; // Within tolerance = exact match
+                    } else if (amountDiff <= tolerance + 1) {
+                        score = 85; // Close match
+                    } else if (amountDiff <= tolerance + 5) {
+                        score = 70; // Fuzzy match
+                    } else if (amountDiff <= tolerance + 10) {
+                        score = 50; // Loose match
+                    }
+                    
+                    // Penalize if date is too far (unless date range is 0)
+                    if (maxDateDiff > 0 && dateDiff > maxDateDiff) {
+                        score = Math.max(0, score - 20); // Penalty for date mismatch
+                    }
 
                     if (score > bestScore) {
                         bestScore = score;
@@ -488,7 +655,11 @@
                     }
                 }
 
-                if (bestMatch && bestScore >= 80) {
+                // Only accept matches above threshold
+                const minScore = matchSettings.strictness === 'strict' ? 90 : 
+                                matchSettings.strictness === 'normal' ? 70 : 50;
+                
+                if (bestMatch && bestScore >= minScore) {
                     matchedJobber.add(bestIdx);
                 }
 
@@ -496,7 +667,7 @@
                     bank: bank,
                     match: bestMatch,
                     score: bestScore,
-                    status: bestScore >= 100 ? 'exact' : bestScore >= 80 ? 'partial' : 'none'
+                    status: bestScore >= 90 ? 'exact' : bestScore >= 70 ? 'partial' : bestScore >= 50 ? 'fuzzy' : 'none'
                 });
             }
 
@@ -524,11 +695,17 @@
         function displayResults(results) {
             const matched = results.filter(r => r.status === 'exact').length;
             const partial = results.filter(r => r.status === 'partial').length;
+            const fuzzy = results.filter(r => r.status === 'fuzzy').length;
             const missing = results.filter(r => r.status === 'none').length;
 
             document.getElementById('countMatched').textContent = matched;
             document.getElementById('countPartial').textContent = partial;
+            document.getElementById('countFuzzy').textContent = fuzzy;
             document.getElementById('countMissing').textContent = missing;
+            
+            // Show current settings
+            document.getElementById('settingsTolerance').textContent = matchSettings.amountTolerance.toFixed(2);
+            document.getElementById('settingsDateRange').textContent = matchSettings.dateRange === 0 ? 'same day' : matchSettings.dateRange + ' days';
 
             renderFilteredResults(results);
             
@@ -542,10 +719,11 @@
             container.innerHTML = results.map(r => {
                 const isMatched = r.status === 'exact';
                 const isPartial = r.status === 'partial';
+                const isFuzzy = r.status === 'fuzzy';
                 const bgClass = isMatched ? 'bg-green-50 border-green-500' : 
-                               isPartial ? 'bg-yellow-50 border-yellow-500' : 
+                               isPartial ? 'bg-blue-50 border-blue-500' : 
+                               isFuzzy ? 'bg-orange-50 border-orange-500' :
                                'bg-red-50 border-red-500';
-                const borderClass = isMatched ? 'border-green-500' : isPartial ? 'border-yellow-500' : 'border-red-500';
                 
                 // Find employee for SMS
                 let emp = null;
@@ -561,8 +739,9 @@
                     smsButton = `<span class="text-gray-400 text-xs">No phone</span>`;
                 }
 
-                const matchBadge = isMatched ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">✓ Matched</span>' : 
-                                   isPartial ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">~ Close</span>' : 
+                const matchBadge = isMatched ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">✓ Exact</span>' : 
+                                   isPartial ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">~ Partial</span>' : 
+                                   isFuzzy ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">≈ Fuzzy</span>' :
                                    '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">✗ Missing</span>';
 
                 return `
